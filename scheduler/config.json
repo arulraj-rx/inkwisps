@@ -1,1 +1,32 @@
-"{}" 
+{
+  "inkwisps": {
+    "Monday": {
+      "times": ["07:00", "10:00", "15:00", "20:00"],
+      "caption": "#inkwisps"
+    },
+    "Tuesday": {
+      "times": ["07:00", "11:00", "14:00", "18:00"],
+      "caption": "#inkwisps"
+    },
+    "Wednesday": {
+      "times": ["05:00", "11:00", "15:00", "18:00"],
+      "caption": "#inkwisps"
+    },
+    "Thursday": {
+      "times": ["05:00", "11:00", "15:00", "20:00"],
+      "caption": "#inkwisps"
+    },
+    "Friday": {
+      "times": ["07:00", "11:00", "15:00", "20:00"],
+      "caption": "#inkwisps"
+    },
+    "Saturday": {
+      "times": ["09:00", "12:00", "15:00", "19:00"],
+      "caption": "#inkwisps"
+    },
+    "Sunday": {
+      "times": ["05:00", "10:00", "18:00", "21:00"],
+      "caption": "#inkwisps"
+    }
+  }
+}
