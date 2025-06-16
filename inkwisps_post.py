@@ -12,7 +12,7 @@ from pytz import timezone, utc
 class DropboxToInstagramUploader:
     DROPBOX_TOKEN_URL = "https://api.dropbox.com/oauth2/token"
     INSTAGRAM_API_BASE = "https://graph.facebook.com/v18.0"
-    SCHEDULE_WINDOW_SECONDS = 300  # 5 minutes window to account for GitHub Actions timing
+    SCHEDULE_WINDOW_SECONDS = 1600  # 30 minutes window to account for GitHub Actions timing
     INSTAGRAM_REEL_STATUS_RETRIES = 12
     INSTAGRAM_REEL_STATUS_WAIT_TIME = 5
 
