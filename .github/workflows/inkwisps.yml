@@ -1,45 +1,46 @@
-name: INKWISPS Instagram Scheduler
+name: InkWisps Instagram Post
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-    - cron: '40 1 * * *'
-    - cron: '20 3 * * *'
-    - cron: '0 5 * * *'
-    - cron: '40 6 * * *'
-    - cron: '20 8 * * *'
-    - cron: '0 10 * * *'
-    - cron: '40 11 * * *'
-    - cron: '20 13 * * *'
-    - cron: '0 15 * * *'
-    - cron: '40 16 * * *'
-    - cron: '20 18 * * *'
-    - cron: '0 20 * * *'
-    - cron: '40 21 * * *'
-  workflow_dispatch:
+    - cron: '0 19 * * *'    # 00:30 AM IST
+    - cron: '24 21 * * *'   # 02:54 AM IST
+    - cron: '48 23 * * *'   # 05:18 AM IST
+    - cron: '12 2 * * *'    # 07:42 AM IST
+    - cron: '36 4 * * *'    # 10:06 AM IST
+    - cron: '0 7 * * *'     # 12:30 PM IST
+    - cron: '24 9 * * *'    # 02:54 PM IST
+    - cron: '48 11 * * *'   # 05:18 PM IST
+    - cron: '12 14 * * *'   # 07:42 PM IST
+    - cron: '36 16 * * *'   # 10:06 PM IST
+  workflow_dispatch:        # allows manual trigger via GitHub UI
 
 jobs:
-  INKWISPS:
+  post_to_instagram:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      IG_INKWISPS_TOKEN: ${{ secrets.IG_INKWISPS_TOKEN }}
+      IG_INKWISPS_ID: ${{ secrets.IG_INKWISPS_ID }}
+      DROPBOX_INKWISPS_APP_KEY: ${{ secrets.DROPBOX_INKWISPS_APP_KEY }}
+      DROPBOX_INKWISPS_APP_SECRET: ${{ secrets.DROPBOX_INKWISPS_APP_SECRET }}
+      DROPBOX_INKWISPS_REFRESH: ${{ secrets.DROPBOX_INKWISPS_REFRESH }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: 🐍 Set Up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install dropbox requests python-telegram-bot==13.15 pytz pynacl
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install dropbox requests python-telegram-bot==13.15 pytz pynacl
 
-      - name: Run Script
-        env:
-          IG_INKWISPS_TOKEN: ${{ secrets.IG_INKWISPS_TOKEN }}
-          IG_INKWISPS_ID: ${{ secrets.IG_INKWISPS_ID }}
-          DROPBOX_INKWISPS_APP_KEY: ${{ secrets.DROPBOX_INKWISPS_APP_KEY }}
-          DROPBOX_INKWISPS_APP_SECRET: ${{ secrets.DROPBOX_INKWISPS_APP_SECRET }}
-          DROPBOX_INKWISPS_REFRESH: ${{ secrets.DROPBOX_INKWISPS_REFRESH }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: 🚀 Run Instagram Uploader
         run: python inkwisps_post.py
