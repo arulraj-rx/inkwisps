@@ -154,22 +154,57 @@ class DropboxToInstagramUploader:
             self.send_message(f"❌ Publish failed: {name}\n{pub.text}", level=logging.ERROR)
             return False
 
-    def run(self):
-        self.send_message(f"📡 Run started at: {datetime.now(self.ist).strftime('%Y-%m-%d %H:%M:%S')}", level=logging.INFO)
+    def authenticate_dropbox(self):
+        """Authenticate with Dropbox and return the client."""
         try:
-            caption = self.get_caption_from_config()
             access_token = self.refresh_dropbox_token()
-            dbx = dropbox.Dropbox(oauth2_access_token=access_token)
+            return dropbox.Dropbox(oauth2_access_token=access_token)
+        except Exception as e:
+            self.send_message(f"❌ Dropbox authentication failed: {str(e)}", level=logging.ERROR)
+            raise
 
+    def select_media_file(self, dbx):
+        """Select the first available media file from Dropbox."""
+        try:
             files = self.list_dropbox_files(dbx)
             if not files:
                 self.send_message("📭 No eligible media found in Dropbox.", level=logging.INFO)
-                return
+                return None
+            return files[0]  # Return the first available file
+        except Exception as e:
+            self.send_message(f"❌ Failed to select media file: {str(e)}", level=logging.ERROR)
+            raise
 
-            # Post the first available file
-            if files and self.post_to_instagram(dbx, files[0], caption):
+    def upload_and_publish(self, dbx, file, caption):
+        """Upload and publish the selected media file to Instagram."""
+        try:
+            if self.post_to_instagram(dbx, file, caption):
                 self.send_message("✅ Successfully posted one image", level=logging.INFO)
+                return True
+            return False
+        except Exception as e:
+            self.send_message(f"❌ Failed to upload and publish: {str(e)}", level=logging.ERROR)
+            raise
 
+    def run(self):
+        """Main execution method that orchestrates the posting process."""
+        self.send_message(f"📡 Run started at: {datetime.now(self.ist).strftime('%Y-%m-%d %H:%M:%S')}", level=logging.INFO)
+        
+        try:
+            # Get caption from config
+            caption = self.get_caption_from_config()
+            
+            # Authenticate with Dropbox
+            dbx = self.authenticate_dropbox()
+            
+            # Select media file
+            file = self.select_media_file(dbx)
+            if not file:
+                return
+            
+            # Upload and publish
+            self.upload_and_publish(dbx, file, caption)
+            
         except Exception as e:
             self.send_message(f"❌ Script crashed:\n{str(e)}", level=logging.ERROR)
             raise
