@@ -12,7 +12,6 @@ from pytz import timezone, utc
 class DropboxToInstagramUploader:
     DROPBOX_TOKEN_URL = "https://api.dropbox.com/oauth2/token"
     INSTAGRAM_API_BASE = "https://graph.facebook.com/v18.0"
-    SCHEDULE_WINDOW_SECONDS = 1600  # 30 minutes window to account for GitHub Actions timing
     INSTAGRAM_REEL_STATUS_RETRIES = 20
     INSTAGRAM_REEL_STATUS_WAIT_TIME = 5
 
@@ -83,35 +82,24 @@ class DropboxToInstagramUploader:
             self.send_message(f"❌ Dropbox folder read failed: {e}", level=logging.ERROR)
             return []
 
-    def is_scheduled_time(self):
-        now_utc = datetime.now(utc)
-        now_ist = now_utc.astimezone(self.ist)
-        today = now_ist.strftime("%A")
-        now_str = now_ist.strftime("%H:%M")
-
+    def get_caption_from_config(self):
         try:
             with open(self.schedule_file, 'r') as f:
                 config = json.load(f)
-
+            
+            # Get today's caption from config
+            today = datetime.now(self.ist).strftime("%A")
             day_config = config.get(self.account_key, {}).get(today, {})
-            allowed_times = day_config.get("times", [])
             caption = day_config.get("caption", "")
-
-            for scheduled in allowed_times:
-                post_time = datetime.strptime(scheduled, "%H:%M").time()
-                scheduled_time = now_ist.replace(hour=post_time.hour, minute=post_time.minute, second=0, microsecond=0)
-                time_diff = abs((now_ist - scheduled_time).total_seconds())
-                if time_diff <= self.SCHEDULE_WINDOW_SECONDS:
-                    self.logger.info(f"Matched scheduled time: {scheduled} (within {self.SCHEDULE_WINDOW_SECONDS} seconds)")
-                    return True, caption
-
-            self.logger.info(f"⏰ Not in schedule. Current: {now_str}, Allowed: {allowed_times}")
-            self.send_message(f"⏰ Not in schedule. Current: {now_str}, Allowed: {allowed_times}", level=logging.INFO)
-            return False, caption
-
+            
+            if not caption:
+                self.send_message("⚠️ No caption found in config for today", level=logging.WARNING)
+                return "✨ #inkwisps ✨"  # Default caption if none found
+            
+            return caption
         except Exception as e:
-            self.send_message(f"❌ Schedule check failed: {e}", level=logging.ERROR)
-            return False, ""
+            self.send_message(f"❌ Failed to read caption from config: {e}", level=logging.ERROR)
+            return "✨ #inkwisps ✨"  # Default caption if config read fails
 
     def post_to_instagram(self, dbx, file, caption):
         name = file.name
@@ -169,10 +157,7 @@ class DropboxToInstagramUploader:
     def run(self):
         self.send_message(f"📡 Run started at: {datetime.now(self.ist).strftime('%Y-%m-%d %H:%M:%S')}", level=logging.INFO)
         try:
-            scheduled, caption = self.is_scheduled_time()
-            if not scheduled:
-                return
-
+            caption = self.get_caption_from_config()
             access_token = self.refresh_dropbox_token()
             dbx = dropbox.Dropbox(oauth2_access_token=access_token)
 
@@ -181,9 +166,9 @@ class DropboxToInstagramUploader:
                 self.send_message("📭 No eligible media found in Dropbox.", level=logging.INFO)
                 return
 
-            for file in files:
-                if self.post_to_instagram(dbx, file, caption):
-                    break  # only one post per run
+            # Post the first available file
+            if files and self.post_to_instagram(dbx, files[0], caption):
+                self.send_message("✅ Successfully posted one image", level=logging.INFO)
 
         except Exception as e:
             self.send_message(f"❌ Script crashed:\n{str(e)}", level=logging.ERROR)
