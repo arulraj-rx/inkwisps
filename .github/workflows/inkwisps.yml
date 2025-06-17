@@ -1,4 +1,4 @@
-name: Ink_Wisps Instagram Post
+name: InkWisps Instagram Post
 
 on:
   schedule:
@@ -20,11 +20,11 @@ jobs:
     timeout-minutes: 10
 
     env:
-      IG_INK_WISPS_TOKEN: ${{ secrets.IG_INK_WISPS_TOKEN }}
-      IG_INK_WISPS_ID: ${{ secrets.IG_INK_WISPS_ID }}
-      DROPBOX_INK_WISPS_APP_KEY: ${{ secrets.DROPBOX_INK_WISPS_APP_KEY }}
-      DROPBOX_INK_WISPS_APP_SECRET: ${{ secrets.DROPBOX_INK_WISPS_APP_SECRET }}
-      DROPBOX_INK_WISPS_REFRESH: ${{ secrets.DROPBOX_INK_WISPS_REFRESH }}
+      IG_INKWISPS_TOKEN: ${{ secrets.IG_INKWISPS_TOKEN }}
+      IG_INKWISPS_ID: ${{ secrets.IG_INKWISPS_ID }}
+      DROPBOX_INKWISPS_APP_KEY: ${{ secrets.DROPBOX_INKWISPS_APP_KEY }}
+      DROPBOX_INKWISPS_APP_SECRET: ${{ secrets.DROPBOX_INKWISPS_APP_SECRET }}
+      DROPBOX_INKWISPS_REFRESH: ${{ secrets.DROPBOX_INKWISPS_REFRESH }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
@@ -43,4 +43,4 @@ jobs:
           pip install dropbox requests python-telegram-bot==13.15 pytz pynacl
 
       - name: 🚀 Run Instagram Uploader
-        run: python ink_wisps_post.py
+        run: python inkwisps_post.py
