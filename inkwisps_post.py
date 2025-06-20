@@ -94,12 +94,12 @@ class DropboxToInstagramUploader:
             
             if not caption:
                 self.send_message("⚠️ No caption found in config for today", level=logging.WARNING)
-                return "✨ #inkwisps ✨"  # Default caption if none found
+                return "✨ #ink_wisps ✨"  # Default caption if none found
             
             return caption
         except Exception as e:
             self.send_message(f"❌ Failed to read caption from config: {e}", level=logging.ERROR)
-            return "✨ #inkwisps ✨"  # Default caption if config read fails
+            return "✨ #ink_wisps ✨"  # Default caption if config read fails
 
     def post_to_instagram(self, dbx, file, caption):
         name = file.name
