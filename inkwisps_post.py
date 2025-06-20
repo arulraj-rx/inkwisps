@@ -8,8 +8,7 @@ import dropbox
 from telegram import Bot
 from datetime import datetime, timedelta
 from pytz import timezone, utc
-import subprocess
-import tempfile
+from moviepy.editor import VideoFileClip
 import shutil
 
 class DropboxToInstagramUploader:
@@ -104,152 +103,137 @@ class DropboxToInstagramUploader:
             self.send_message(f"❌ Failed to read caption from config: {e}", level=logging.ERROR)
             return "✨ #ink_wisps ✨"  # Default caption if config read fails
 
-    def setup_file_logger(self):
-        self.log_file = os.path.join(tempfile.gettempdir(), f"{self.script_name}.log")
-        file_handler = logging.FileHandler(self.log_file)
-        file_handler.setLevel(logging.INFO)
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
+    def get_video_duration(self, url):
+        """Download and return duration in seconds."""
+        try:
+            local_path = "temp_video.mp4" if os.name == 'nt' else "/tmp/temp_video.mp4"
+            with open(local_path, "wb") as f:
+                f.write(requests.get(url).content)
 
-    def send_log_file(self):
-        try:
-            with open(self.log_file, 'rb') as f:
-                self.telegram_bot.send_document(chat_id=self.telegram_chat_id, document=f)
+            clip = VideoFileClip(local_path)
+            duration = clip.duration
+            clip.close()
+            os.remove(local_path)
+            return duration
         except Exception as e:
-            self.logger.error(f"Failed to send log file: {e}")
+            self.logger.error(f"❌ Could not get video duration: {e}")
+            return 0
 
-    def check_and_convert_video(self, dbx, file):
-        """
-        Check if the video meets Instagram requirements. If not, convert it using ffmpeg (streaming from Dropbox),
-        upload to Dropbox /temp, and return the new file metadata. No local storage is used for the final file.
-        """
-        # Instagram requirements
-        min_duration = 3
-        max_duration = 90
-        min_width = 500
-        max_filesize = 100 * 1024 * 1024  # 100MB
-        allowed_codecs = ['h264', 'aac']
-        temp_link = dbx.files_get_temporary_link(file.path_lower).link
-        # Probe video using ffprobe
-        ffprobe_cmd = [
-            'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries',
-            'stream=width,height,codec_name,duration', '-of', 'json', temp_link
-        ]
+    def validate_and_prepare_video(self, url, min_duration=5, min_res=360, min_fps=23, max_fps=60):
+        """Download, validate, and if needed, re-encode video to a safe format. Returns (local_path, duration, size, fps, codec, was_converted, error_msg)"""
         try:
-            probe = subprocess.run(ffprobe_cmd, capture_output=True, text=True, check=True)
-            info = json.loads(probe.stdout)
-            stream = info['streams'][0]
-            width = int(stream['width'])
-            height = int(stream['height'])
-            codec = stream['codec_name']
-            duration = float(stream['duration'])
+            local_path = "temp_video.mp4" if os.name == 'nt' else "/tmp/temp_video.mp4"
+            with open(local_path, "wb") as f:
+                f.write(requests.get(url).content)
+            clip = VideoFileClip(local_path)
+            duration = clip.duration
+            width, height = clip.size
+            fps = clip.fps
+            codec = getattr(clip.reader, 'codec', 'unknown')
+            self.logger.info(f"Video properties: duration={duration:.2f}s, size={width}x{height}, fps={fps}, codec={codec}")
+            # Validation
+            if duration < min_duration:
+                clip.close()
+                os.remove(local_path)
+                return None, duration, (width, height), fps, codec, False, f"Video too short: {duration:.2f}s"
+            if width < min_res or height < min_res:
+                clip.close()
+                os.remove(local_path)
+                return None, duration, (width, height), fps, codec, False, f"Resolution too low: {width}x{height}"
+            if fps < min_fps or fps > max_fps:
+                self.logger.warning(f"FPS out of range: {fps}, will re-encode.")
+                need_convert = True
+            else:
+                need_convert = False
+            # Check codec (moviepy does not always expose codec, so always re-encode if unsure)
+            if codec != 'h264' and codec != 'avc1':
+                self.logger.warning(f"Codec not h264/avc1: {codec}, will re-encode.")
+                need_convert = True
+            # If conversion needed, re-encode to h264/aac, keep original size/orientation
+            if need_convert:
+                safe_path = local_path.replace('.mp4', '_safe.mp4')
+                clip.write_videofile(safe_path, codec='libx264', audio_codec='aac', preset='ultrafast', threads=2, logger=None)
+                clip.close()
+                os.remove(local_path)
+                return safe_path, duration, (width, height), fps, 'h264', True, None
+            else:
+                clip.close()
+                return local_path, duration, (width, height), fps, codec, False, None
         except Exception as e:
-            self.logger.error(f"ffprobe failed: {e}")
-            return file  # fallback: try to upload as is
-        # Check requirements
-        needs_convert = (
-            codec != 'h264' or
-            width < min_width or
-            duration < min_duration or duration > max_duration or
-            file.size > max_filesize
-        )
-        if not needs_convert:
-            return file  # Already compliant
-        # Convert using ffmpeg, stream from Dropbox, output to temp file
-        self.logger.info(f"Converting video {file.name} to Instagram format...")
-        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_out:
-            temp_out_path = temp_out.name
-        ffmpeg_cmd = [
-            'ffmpeg', '-y', '-i', temp_link,
-            '-vf', f'scale={max(width,540)}:-2',
-            '-c:v', 'libx264', '-preset', 'fast', '-profile:v', 'main', '-level', '3.1',
-            '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart',
-            '-t', str(max_duration),
-            temp_out_path
-        ]
-        try:
-            subprocess.run(ffmpeg_cmd, check=True)
-            # Upload to Dropbox /temp
-            with open(temp_out_path, 'rb') as f:
-                temp_dropbox_path = f"/temp/{file.name}_insta.mp4"
-                dbx.files_upload(f.read(), temp_dropbox_path, mode=dropbox.files.WriteMode.overwrite)
-            os.remove(temp_out_path)
-            # Get new file metadata
-            new_file = dbx.files_get_metadata(temp_dropbox_path)
-            self.logger.info(f"Converted and uploaded to {temp_dropbox_path}")
-            return new_file
-        except Exception as e:
-            self.logger.error(f"ffmpeg conversion/upload failed: {e}")
-            if os.path.exists(temp_out_path):
-                os.remove(temp_out_path)
-            return file  # fallback: try to upload as is
+            self.logger.error(f"❌ Could not validate/prepare video: {e}")
+            return None, 0, (0,0), 0, 'unknown', False, str(e)
 
     def post_to_instagram(self, dbx, file, caption):
         name = file.name
         ext = name.lower()
-        media_type = "REELS" if ext.endswith((".mp4", ".mov")) else "IMAGE"
-        # For video, check/convert first
-        if media_type == "REELS":
-            file = self.check_and_convert_video(dbx, file)
+        is_video = ext.endswith((".mp4", ".mov"))
+
         temp_link = dbx.files_get_temporary_link(file.path_lower).link
         file_size = f"{file.size / 1024 / 1024:.2f}MB"
         total_files = len(self.list_dropbox_files(dbx))
+
+        if is_video:
+            local_path, duration, res, fps, codec, was_converted, error_msg = self.validate_and_prepare_video(temp_link)
+            if error_msg:
+                self.send_message(f"⚠️ Skipping video: {name} ({error_msg})", level=logging.WARNING)
+                return False
+            self.logger.info(f"Validated video: {name}, duration={duration:.2f}s, res={res}, fps={fps}, codec={codec}, converted={was_converted}")
+            upload_url = temp_link if not was_converted else None
+            if was_converted:
+                # Upload the safe file to Dropbox to get a temp link
+                safe_dropbox_path = file.path_lower.replace('.mp4', '_safe.mp4')
+                with open(local_path, 'rb') as f:
+                    dbx.files_upload(f.read(), safe_dropbox_path, mode=dropbox.files.WriteMode.overwrite)
+                temp_link = dbx.files_get_temporary_link(safe_dropbox_path).link
+                os.remove(local_path)
+                # Optionally, delete the safe file from Dropbox after use
+                dbx.files_delete_v2(safe_dropbox_path)
+            media_type = "REELS"
+        else:
+            media_type = "IMAGE"
+
         self.send_message(f"🚀 Uploading: {name}\n📂 Type: {media_type}\n📐 Size: {file_size}\n📦 Remaining: {total_files}")
+
         upload_url = f"{self.INSTAGRAM_API_BASE}/{self.instagram_account_id}/media"
         data = {
             "access_token": self.instagram_access_token,
             "caption": caption
         }
+
         if media_type == "REELS":
-            data.update({"media_type": "REELS", "video_url": temp_link, "share_to_feed": "true"})
+            data.update({"media_type": "REELS", "video_url": upload_url, "share_to_feed": "true"})
         else:
-            data["image_url"] = temp_link
-        try:
-            res = requests.post(upload_url, data=data)
-            if res.status_code != 200:
-                self.logger.error(f"Instagram upload error: {res.text}")
-                err = res.json().get("error", {}).get("message", "Unknown")
-                code = res.json().get("error", {}).get("code", "N/A")
-                self.send_message(f"❌ Failed: {name}\n🧾 Error: {err}\n🪪 Code: {code}", level=logging.ERROR)
-                self.send_log_file()
-                return False
-            creation_id = res.json()["id"]
-            if media_type == "REELS":
-                for _ in range(self.INSTAGRAM_REEL_STATUS_RETRIES):
-                    status_res = requests.get(
-                        f"{self.INSTAGRAM_API_BASE}/{creation_id}?fields=status_code&access_token={self.instagram_access_token}"
-                    )
-                    status = status_res.json()
-                    if status.get("status_code") == "FINISHED":
-                        break
-                    elif status.get("status_code") == "ERROR":
-                        self.logger.error(f"IG processing failed: {name}, status: {status}")
-                        self.send_message(f"❌ IG processing failed: {name}\n{status}", level=logging.ERROR)
-                        self.send_log_file()
-                        return False
-                    time.sleep(self.INSTAGRAM_REEL_STATUS_WAIT_TIME)
-            publish_url = f"{self.INSTAGRAM_API_BASE}/{self.instagram_account_id}/media_publish"
-            pub = requests.post(publish_url, data={"creation_id": creation_id, "access_token": self.instagram_access_token})
-            if pub.status_code == 200:
-                self.send_message(f"✅ Uploaded: {name}\n📦 Files left: {total_files - 1}")
-                dbx.files_delete_v2(file.path_lower)
-                # If temp file, also delete from /temp
-                if media_type == "REELS" and file.path_lower.startswith("/temp/"):
-                    try:
-                        dbx.files_delete_v2(file.path_lower)
-                    except Exception as e:
-                        self.logger.error(f"Failed to delete temp file: {e}")
-                return True
-            else:
-                self.logger.error(f"Instagram publish error: {pub.text}")
-                self.send_message(f"❌ Publish failed: {name}\n{pub.text}", level=logging.ERROR)
-                self.send_log_file()
-                return False
-        except Exception as e:
-            self.logger.error(f"Instagram API exception: {e}")
-            self.send_message(f"❌ Instagram API exception: {e}", level=logging.ERROR)
-            self.send_log_file()
+            data["image_url"] = upload_url
+
+        res = requests.post(upload_url, data=data)
+        if res.status_code != 200:
+            err = res.json().get("error", {}).get("message", "Unknown")
+            code = res.json().get("error", {}).get("code", "N/A")
+            self.send_message(f"❌ Failed: {name}\n🧾 Error: {err}\n🪪 Code: {code}", level=logging.ERROR)
+            return False
+
+        creation_id = res.json()["id"]
+
+        if media_type == "REELS":
+            for _ in range(self.INSTAGRAM_REEL_STATUS_RETRIES):
+                status = requests.get(
+                    f"{self.INSTAGRAM_API_BASE}/{creation_id}?fields=status_code&access_token={self.instagram_access_token}"
+                ).json()
+                if status.get("status_code") == "FINISHED":
+                    break
+                elif status.get("status_code") == "ERROR":
+                    self.send_message(f"❌ IG processing failed: {name}", level=logging.ERROR)
+                    return False
+                time.sleep(self.INSTAGRAM_REEL_STATUS_WAIT_TIME)
+
+        publish_url = f"{self.INSTAGRAM_API_BASE}/{self.instagram_account_id}/media_publish"
+        pub = requests.post(publish_url, data={"creation_id": creation_id, "access_token": self.instagram_access_token})
+        if pub.status_code == 200:
+            self.send_message(f"✅ Uploaded: {name}\n📦 Files left: {total_files - 1}")
+            dbx.files_delete_v2(file.path_lower)
+            return True
+        else:
+            self.send_message(f"❌ Publish failed: {name}\n{pub.text}", level=logging.ERROR)
             return False
 
     def authenticate_dropbox(self):
@@ -285,19 +269,26 @@ class DropboxToInstagramUploader:
             raise
 
     def run(self):
-        self.setup_file_logger()
+        """Main execution method that orchestrates the posting process."""
         self.send_message(f"📡 Run started at: {datetime.now(self.ist).strftime('%Y-%m-%d %H:%M:%S')}", level=logging.INFO)
+        
         try:
+            # Get caption from config
             caption = self.get_caption_from_config()
+            
+            # Authenticate with Dropbox
             dbx = self.authenticate_dropbox()
+            
+            # Select media file
             file = self.select_media_file(dbx)
             if not file:
                 return
+            
+            # Upload and publish
             self.upload_and_publish(dbx, file, caption)
+            
         except Exception as e:
-            self.logger.error(f"Script crashed: {e}")
             self.send_message(f"❌ Script crashed:\n{str(e)}", level=logging.ERROR)
-            self.send_log_file()
             raise
         finally:
             duration = time.time() - self.start_time
