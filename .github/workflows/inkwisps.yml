@@ -2,16 +2,15 @@ name: InkWisps Instagram Post
 
 on:
   schedule:
-    - cron: '0 19 * * *'    # 00:30 AM IST
-    - cron: '24 21 * * *'   # 02:54 AM IST
-    - cron: '48 23 * * *'   # 05:18 AM IST
-    - cron: '12 2 * * *'    # 07:42 AM IST
-    - cron: '36 4 * * *'    # 10:06 AM IST
-    - cron: '0 7 * * *'     # 12:30 PM IST
-    - cron: '24 9 * * *'    # 02:54 PM IST
-    - cron: '48 11 * * *'   # 05:18 PM IST
-    - cron: '12 14 * * *'   # 07:42 PM IST
-    - cron: '36 16 * * *'   # 10:06 PM IST
+# ⏰ IST → UTC cron format
+- cron: '30 0 * * *'   # 06:00 AM IST
+- cron: '30 2 * * *'   # 08:00 AM IST
+- cron: '0 7 * * *'    # 12:30 PM IST
+- cron: '30 9 * * *'   # 03:00 PM IST
+- cron: '30 11 * * *'  # 05:00 PM IST
+- cron: '0 13 * * *'   # 06:30 PM IST
+- cron: '30 15 * * *'  # 09:00 PM IST
+- cron: '0 17 * * *'   # 10:30 PM IST
   workflow_dispatch:        # allows manual trigger via GitHub UI
 
 jobs:
