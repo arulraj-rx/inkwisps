@@ -163,28 +163,33 @@ class DropboxToInstagramUploader:
             self.send_message(f"❌ Dropbox authentication failed: {str(e)}", level=logging.ERROR)
             raise
 
-    def select_media_file(self, dbx):
-        """Select the first available media file from Dropbox."""
-        try:
-            files = self.list_dropbox_files(dbx)
-            if not files:
-                self.send_message("📭 No eligible media found in Dropbox.", level=logging.INFO)
-                return None
-            return files[0]  # Return the first available file
-        except Exception as e:
-            self.send_message(f"❌ Failed to select media file: {str(e)}", level=logging.ERROR)
-            raise
+    def process_files_with_retries(self, dbx, caption, max_retries=3):
+        files = self.list_dropbox_files(dbx)
 
-    def upload_and_publish(self, dbx, file, caption):
-        """Upload and publish the selected media file to Instagram."""
-        try:
-            if self.post_to_instagram(dbx, file, caption):
-                self.send_message("✅ Successfully posted one image", level=logging.INFO)
-                return True
-            return False
-        except Exception as e:
-            self.send_message(f"❌ Failed to upload and publish: {str(e)}", level=logging.ERROR)
-            raise
+        attempts = 0
+        for file in files[:max_retries]:
+            attempts += 1
+            self.send_message(f"🎯 Attempt {attempts} of {max_retries}", level=logging.INFO)
+
+            try:
+                success = self.post_to_instagram(dbx, file, caption)
+            except Exception as e:
+                self.send_message(f"❌ Exception during post: {e}", level=logging.ERROR)
+                success = False
+
+            # Always delete the file after an attempt
+            try:
+                dbx.files_delete_v2(file.path_lower)
+                self.send_message(f"🗑️ Deleted file after attempt: {file.name}")
+            except Exception as e:
+                self.send_message(f"⚠️ Failed to delete file {file.name}: {e}", level=logging.WARNING)
+
+            if success:
+                self.send_message(f"✅ Success on attempt {attempts} — Exiting.")
+                return True  # Exit after successful post
+
+        self.send_message("❌ All attempts failed. Exiting after 3 tries.", level=logging.ERROR)
+        return False
 
     def run(self):
         """Main execution method that orchestrates the posting process."""
@@ -197,13 +202,8 @@ class DropboxToInstagramUploader:
             # Authenticate with Dropbox
             dbx = self.authenticate_dropbox()
             
-            # Select media file
-            file = self.select_media_file(dbx)
-            if not file:
-                return
-            
-            # Upload and publish
-            self.upload_and_publish(dbx, file, caption)
+            # Try posting up to 3 times
+            self.process_files_with_retries(dbx, caption, max_retries=3)
             
         except Exception as e:
             self.send_message(f"❌ Script crashed:\n{str(e)}", level=logging.ERROR)
