@@ -8,8 +8,6 @@ import dropbox
 from telegram import Bot
 from datetime import datetime, timedelta
 from pytz import timezone, utc
-from moviepy.editor import VideoFileClip
-import shutil
 
 class DropboxToInstagramUploader:
     DROPBOX_TOKEN_URL = "https://api.dropbox.com/oauth2/token"
@@ -103,94 +101,14 @@ class DropboxToInstagramUploader:
             self.send_message(f"❌ Failed to read caption from config: {e}", level=logging.ERROR)
             return "✨ #ink_wisps ✨"  # Default caption if config read fails
 
-    def get_video_duration(self, url):
-        """Download and return duration in seconds."""
-        try:
-            local_path = "temp_video.mp4" if os.name == 'nt' else "/tmp/temp_video.mp4"
-            with open(local_path, "wb") as f:
-                f.write(requests.get(url).content)
-
-            clip = VideoFileClip(local_path)
-            duration = clip.duration
-            clip.close()
-            os.remove(local_path)
-            return duration
-        except Exception as e:
-            self.logger.error(f"❌ Could not get video duration: {e}")
-            return 0
-
-    def validate_and_prepare_video(self, url, min_duration=5, min_res=360, min_fps=23, max_fps=60):
-        """Download, validate, and if needed, re-encode video to a safe format. Returns (local_path, duration, size, fps, codec, was_converted, error_msg)"""
-        try:
-            local_path = "temp_video.mp4" if os.name == 'nt' else "/tmp/temp_video.mp4"
-            with open(local_path, "wb") as f:
-                f.write(requests.get(url).content)
-            clip = VideoFileClip(local_path)
-            duration = clip.duration
-            width, height = clip.size
-            fps = clip.fps
-            codec = getattr(clip.reader, 'codec', 'unknown')
-            self.logger.info(f"Video properties: duration={duration:.2f}s, size={width}x{height}, fps={fps}, codec={codec}")
-            # Validation
-            if duration < min_duration:
-                clip.close()
-                os.remove(local_path)
-                return None, duration, (width, height), fps, codec, False, f"Video too short: {duration:.2f}s"
-            if width < min_res or height < min_res:
-                clip.close()
-                os.remove(local_path)
-                return None, duration, (width, height), fps, codec, False, f"Resolution too low: {width}x{height}"
-            if fps < min_fps or fps > max_fps:
-                self.logger.warning(f"FPS out of range: {fps}, will re-encode.")
-                need_convert = True
-            else:
-                need_convert = False
-            # Check codec (moviepy does not always expose codec, so always re-encode if unsure)
-            if codec != 'h264' and codec != 'avc1':
-                self.logger.warning(f"Codec not h264/avc1: {codec}, will re-encode.")
-                need_convert = True
-            # If conversion needed, re-encode to h264/aac, keep original size/orientation
-            if need_convert:
-                safe_path = local_path.replace('.mp4', '_safe.mp4')
-                clip.write_videofile(safe_path, codec='libx264', audio_codec='aac', preset='ultrafast', threads=2, logger=None)
-                clip.close()
-                os.remove(local_path)
-                return safe_path, duration, (width, height), fps, 'h264', True, None
-            else:
-                clip.close()
-                return local_path, duration, (width, height), fps, codec, False, None
-        except Exception as e:
-            self.logger.error(f"❌ Could not validate/prepare video: {e}")
-            return None, 0, (0,0), 0, 'unknown', False, str(e)
-
     def post_to_instagram(self, dbx, file, caption):
         name = file.name
         ext = name.lower()
-        is_video = ext.endswith((".mp4", ".mov"))
+        media_type = "REELS" if ext.endswith((".mp4", ".mov")) else "IMAGE"
 
         temp_link = dbx.files_get_temporary_link(file.path_lower).link
         file_size = f"{file.size / 1024 / 1024:.2f}MB"
         total_files = len(self.list_dropbox_files(dbx))
-
-        if is_video:
-            local_path, duration, res, fps, codec, was_converted, error_msg = self.validate_and_prepare_video(temp_link)
-            if error_msg:
-                self.send_message(f"⚠️ Skipping video: {name} ({error_msg})", level=logging.WARNING)
-                return False
-            self.logger.info(f"Validated video: {name}, duration={duration:.2f}s, res={res}, fps={fps}, codec={codec}, converted={was_converted}")
-            upload_url = temp_link if not was_converted else None
-            if was_converted:
-                # Upload the safe file to Dropbox to get a temp link
-                safe_dropbox_path = file.path_lower.replace('.mp4', '_safe.mp4')
-                with open(local_path, 'rb') as f:
-                    dbx.files_upload(f.read(), safe_dropbox_path, mode=dropbox.files.WriteMode.overwrite)
-                temp_link = dbx.files_get_temporary_link(safe_dropbox_path).link
-                os.remove(local_path)
-                # Optionally, delete the safe file from Dropbox after use
-                dbx.files_delete_v2(safe_dropbox_path)
-            media_type = "REELS"
-        else:
-            media_type = "IMAGE"
 
         self.send_message(f"🚀 Uploading: {name}\n📂 Type: {media_type}\n📐 Size: {file_size}\n📦 Remaining: {total_files}")
 
@@ -201,9 +119,9 @@ class DropboxToInstagramUploader:
         }
 
         if media_type == "REELS":
-            data.update({"media_type": "REELS", "video_url": upload_url, "share_to_feed": "true"})
+            data.update({"media_type": "REELS", "video_url": temp_link, "share_to_feed": "true"})
         else:
-            data["image_url"] = upload_url
+            data["image_url"] = temp_link
 
         res = requests.post(upload_url, data=data)
         if res.status_code != 200:
