@@ -10,7 +10,7 @@ from pytz import timezone
 
 class DropboxToInstagramUploader:
     DROPBOX_TOKEN_URL = "https://api.dropbox.com/oauth2/token"
-    INSTAGRAM_API_BASE = "https://graph.facebook.com/v18.0"
+    INSTAGRAM_API_BASE = "https://graph.facebook.com/v19.0"
     INSTAGRAM_REEL_STATUS_RETRIES = 20
     INSTAGRAM_REEL_STATUS_WAIT_TIME = 5
 
@@ -126,13 +126,13 @@ class DropboxToInstagramUploader:
         }
 
         if media_type == "REELS":
-            data.update({"media_type": "REELS", "video_url": temp_link, "share_to_feed": "true"})
+            data.update({"video_url": temp_link, "share_to_feed": "true"})
         else:
             data["image_url"] = temp_link
 
         res = requests.post(upload_url, data=data)
         self.logger.info(f"📡 IG upload response: {res.text}")
-        if res.status_code != 200:
+        if res.status_code != 200 or "id" not in res.json():
             err = res.json().get("error", {}).get("message", "Unknown")
             code = res.json().get("error", {}).get("code", "N/A")
             self.send_message(f"❌ Failed: {name}\n🧾 Error: {err}\n🪪 Code: {code}", level=logging.ERROR)
@@ -145,7 +145,7 @@ class DropboxToInstagramUploader:
                 status = requests.get(
                     f"{self.INSTAGRAM_API_BASE}/{creation_id}?fields=status_code&access_token={self.instagram_access_token}"
                 ).json()
-                self.logger.info(f"📊 IG processing status: {status}")
+                self.logger.info(f"📊 IG processing status: {status.get('status_code')} | ID: {creation_id}")
                 if status.get("status_code") == "FINISHED":
                     break
                 elif status.get("status_code") == "ERROR":
