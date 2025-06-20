@@ -1,4 +1,3 @@
-# File: INKWISPS_post.py
 import os
 import time
 import json
@@ -6,8 +5,8 @@ import logging
 import requests
 import dropbox
 from telegram import Bot
-from datetime import datetime, timedelta
-from pytz import timezone, utc
+from datetime import datetime
+from pytz import timezone
 
 class DropboxToInstagramUploader:
     DROPBOX_TOKEN_URL = "https://api.dropbox.com/oauth2/token"
@@ -21,7 +20,6 @@ class DropboxToInstagramUploader:
         self.account_key = "inkwisps"
         self.schedule_file = "scheduler/config.json"
 
-        # Logging
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s - %(levelname)s - %(message)s",
@@ -29,7 +27,6 @@ class DropboxToInstagramUploader:
         )
         self.logger = logging.getLogger()
 
-        # Secrets from GitHub environment
         self.instagram_access_token = os.getenv("IG_INKWISPS_TOKEN")
         self.instagram_account_id = os.getenv("IG_INKWISPS_ID")
         self.dropbox_app_key = os.getenv("DROPBOX_INKWISPS_APP_KEY")
@@ -48,13 +45,19 @@ class DropboxToInstagramUploader:
         full_msg = prefix + msg
         try:
             self.telegram_bot.send_message(chat_id=self.telegram_chat_id, text=full_msg)
-            # Also log the message to console with the specified level
             if level == logging.ERROR:
                 self.logger.error(full_msg)
             else:
                 self.logger.info(full_msg)
         except Exception as e:
             self.logger.error(f"Telegram send error for message '{full_msg}': {e}")
+
+    def is_token_valid(self):
+        r = requests.get(f"https://graph.facebook.com/me?access_token={self.instagram_access_token}")
+        if r.status_code != 200:
+            self.send_message(f"❌ IG token expired or invalid:\n{r.text}", level=logging.ERROR)
+            return False
+        return True
 
     def refresh_dropbox_token(self):
         self.logger.info("Refreshing Dropbox token...")
@@ -86,20 +89,19 @@ class DropboxToInstagramUploader:
         try:
             with open(self.schedule_file, 'r') as f:
                 config = json.load(f)
-            
-            # Get today's caption from config
+
             today = datetime.now(self.ist).strftime("%A")
             day_config = config.get(self.account_key, {}).get(today, {})
             caption = day_config.get("caption", "")
-            
+
             if not caption:
                 self.send_message("⚠️ No caption found in config for today", level=logging.WARNING)
-                return "✨ #ink_wisps ✨"  # Default caption if none found
-            
+                return "✨ #inkwisps ✨"
+
             return caption
         except Exception as e:
             self.send_message(f"❌ Failed to read caption from config: {e}", level=logging.ERROR)
-            return "✨ #ink_wisps ✨"  # Default caption if config read fails
+            return "✨ #inkwisps ✨"
 
     def post_to_instagram(self, dbx, file, caption):
         name = file.name
@@ -107,6 +109,11 @@ class DropboxToInstagramUploader:
         media_type = "REELS" if ext.endswith((".mp4", ".mov")) else "IMAGE"
 
         temp_link = dbx.files_get_temporary_link(file.path_lower).link
+        test = requests.get(temp_link)
+        if test.status_code != 200:
+            self.send_message("❌ Dropbox temp link broken or expired", level=logging.ERROR)
+            return False
+
         file_size = f"{file.size / 1024 / 1024:.2f}MB"
         total_files = len(self.list_dropbox_files(dbx))
 
@@ -124,6 +131,7 @@ class DropboxToInstagramUploader:
             data["image_url"] = temp_link
 
         res = requests.post(upload_url, data=data)
+        self.logger.info(f"📡 IG upload response: {res.text}")
         if res.status_code != 200:
             err = res.json().get("error", {}).get("message", "Unknown")
             code = res.json().get("error", {}).get("code", "N/A")
@@ -137,6 +145,7 @@ class DropboxToInstagramUploader:
                 status = requests.get(
                     f"{self.INSTAGRAM_API_BASE}/{creation_id}?fields=status_code&access_token={self.instagram_access_token}"
                 ).json()
+                self.logger.info(f"📊 IG processing status: {status}")
                 if status.get("status_code") == "FINISHED":
                     break
                 elif status.get("status_code") == "ERROR":
@@ -155,7 +164,6 @@ class DropboxToInstagramUploader:
             return False
 
     def authenticate_dropbox(self):
-        """Authenticate with Dropbox and return the client."""
         try:
             access_token = self.refresh_dropbox_token()
             return dropbox.Dropbox(oauth2_access_token=access_token)
@@ -164,19 +172,17 @@ class DropboxToInstagramUploader:
             raise
 
     def select_media_file(self, dbx):
-        """Select the first available media file from Dropbox."""
         try:
             files = self.list_dropbox_files(dbx)
             if not files:
                 self.send_message("📭 No eligible media found in Dropbox.", level=logging.INFO)
                 return None
-            return files[0]  # Return the first available file
+            return files[0]
         except Exception as e:
             self.send_message(f"❌ Failed to select media file: {str(e)}", level=logging.ERROR)
             raise
 
     def upload_and_publish(self, dbx, file, caption):
-        """Upload and publish the selected media file to Instagram."""
         try:
             if self.post_to_instagram(dbx, file, caption):
                 self.send_message("✅ Successfully posted one image", level=logging.INFO)
@@ -187,24 +193,22 @@ class DropboxToInstagramUploader:
             raise
 
     def run(self):
-        """Main execution method that orchestrates the posting process."""
         self.send_message(f"📡 Run started at: {datetime.now(self.ist).strftime('%Y-%m-%d %H:%M:%S')}", level=logging.INFO)
-        
+
+        if not self.instagram_account_id or not self.instagram_access_token:
+            self.send_message("❌ Missing IG credentials in environment", level=logging.ERROR)
+            return
+
+        if not self.is_token_valid():
+            return
+
         try:
-            # Get caption from config
             caption = self.get_caption_from_config()
-            
-            # Authenticate with Dropbox
             dbx = self.authenticate_dropbox()
-            
-            # Select media file
             file = self.select_media_file(dbx)
             if not file:
                 return
-            
-            # Upload and publish
             self.upload_and_publish(dbx, file, caption)
-            
         except Exception as e:
             self.send_message(f"❌ Script crashed:\n{str(e)}", level=logging.ERROR)
             raise
