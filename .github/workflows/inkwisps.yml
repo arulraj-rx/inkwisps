@@ -1,14 +1,3 @@
-name: InkWisps Instagram Post
-
-on:
-  schedule:
-    - cron: '0 3 * * *'     # 03:00 UTC
-    - cron: '0 10 * * *'    # 10:00 UTC
-    - cron: '0 12 * * *'    # 12:00 UTC
-    - cron: '0 15 * * *'    # 15:00 UTC
-    - cron: '0 17 * * *'    # 17:00 UTC
-    - cron: '0 22 * * *'    # 22:00 UTC
-  workflow_dispatch:        # allows manual trigger via GitHub UI
 
 jobs:
   post_to_instagram:
