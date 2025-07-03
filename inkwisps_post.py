@@ -681,8 +681,10 @@ class DropboxToInstagramUploader:
         # Final summary with remaining files count
         if media_type == "REELS":
             self.log_console_only(f"📊 Final Status: Instagram {'✅' if instagram_success else '❌'} | Facebook {'✅' if facebook_success else '❌'} | 📦 Remaining files: {remaining_files}", level=logging.INFO)
+        elif media_type == "IMAGE":
+            self.log_console_only(f"📊 Final Status: Instagram {'✅' if instagram_success else '❌'} | Facebook {'✅' if facebook_success else '❌'} (image) | 📦 Remaining files: {remaining_files}", level=logging.INFO)
         else:
-            self.log_console_only(f"📊 Final Status: Instagram {'✅' if instagram_success else '❌'} | Facebook N/A (image) | 📦 Remaining files: {remaining_files}", level=logging.INFO)
+            self.log_console_only(f"📊 Final Status: Instagram {'✅' if instagram_success else '❌'} | Facebook N/A | 📦 Remaining files: {remaining_files}", level=logging.INFO)
         
         # Return overall success (Instagram success is primary)
         return instagram_success
