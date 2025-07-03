@@ -365,12 +365,20 @@ class DropboxToInstagramUploader:
                 # Verify the post is live using the published media_id (not creation_id)
                 self.verify_instagram_post_by_media_id(instagram_id, page_token)
             
-            # Also post to Facebook Page if it's a REEL (using the same page token)
+            # Also post to Facebook Page for both REELS and IMAGE
             if media_type == "REELS":
                 self.log_console_only("📘 Step 5: Starting Facebook Page upload...", level=logging.INFO)
                 facebook_success = self.post_to_facebook_page(dbx, file, caption, page_token)
+            elif media_type == "IMAGE":
+                self.log_console_only("📘 Step 5: Starting Facebook Page upload for image...", level=logging.INFO)
+                facebook_success = self.post_to_facebook_page(dbx, file, caption, page_token)
+                # Telegram log for Facebook image upload
+                if facebook_success:
+                    self.send_message(f"✅ Facebook Page photo published successfully for file: {file.name}", level=logging.INFO)
+                else:
+                    self.send_message(f"❌ Facebook Page photo upload failed for file: {file.name}", level=logging.ERROR)
             else:
-                facebook_success = True  # No Facebook post needed for images
+                facebook_success = True  # No Facebook post needed for other types
             
             # Return success status for both platforms
             return True, media_type, instagram_success, facebook_success
