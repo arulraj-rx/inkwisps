@@ -228,7 +228,7 @@ class DropboxToInstagramUploader:
         base_name = os.path.splitext(file.name)[0]
         base_name = base_name.replace('_', ' ')
         first_line = base_name[:100]
-        return f"{first_line}\n.\n.\n\n{original_caption}"
+        return f"{first_line}\n\n{original_caption}"
 
     def post_to_instagram(self, dbx, file, caption, description):
         name = file.name
@@ -432,7 +432,7 @@ class DropboxToInstagramUploader:
         """Publish the video to the Facebook Page as a Reel or regular video. Uses Dropbox metadata for decision."""
         import requests
         import os
-        video_url = dbx.files_get_temporary_link(file.path_lower).link
+        media_url = dbx.files_get_temporary_link(file.path_lower).link
         if not self.fb_page_id:
             self.send_message("⚠️ Facebook Page ID not configured, skipping Facebook post", level=logging.WARNING)
             return False
@@ -480,7 +480,7 @@ class DropboxToInstagramUploader:
             # 2. Upload video using hosted file (Dropbox temp link)
             headers = {
                 "Authorization": f"OAuth {page_token}",
-                "file_url": video_url
+                "file_url": media_url
             }
             upload_res = self.session.post(upload_url, headers=headers)
             if upload_res.status_code != 200:
@@ -523,7 +523,7 @@ class DropboxToInstagramUploader:
                 post_url = f"https://graph.facebook.com/{self.fb_page_id}/photos"
                 data = {
                     "access_token": page_token,
-                    "url": video_url,
+                    "url": media_url,
                     "caption": caption
                 }
                 try:
@@ -552,12 +552,12 @@ class DropboxToInstagramUploader:
                 post_url = f"https://graph.facebook.com/{self.fb_page_id}/videos"
                 data = {
                     "access_token": page_token,
-                    "file_url": video_url,
+                    "file_url": media_url,
                     "description": caption
                 }
                 self.log_console_only(f"🔐 Using page token for Facebook upload: {page_token[:20]}...", level=logging.INFO)
                 self.log_console_only(f"📄 Page ID for upload: {self.fb_page_id}", level=logging.INFO)
-                self.log_console_only(f"📹 Video URL: {video_url[:50]}...", level=logging.INFO)
+                self.log_console_only(f"📹 Video URL: {media_url[:50]}...", level=logging.INFO)
                 self.log_console_only(f"📝 Caption: {caption[:50]}...", level=logging.INFO)
                 self.log_console_only("🔄 Skipping token verification for Facebook upload...", level=logging.INFO)
                 try:
