@@ -419,12 +419,19 @@ class DropboxToInstagramUploader:
 
     def get_dropbox_video_metadata(self, dbx, file):
         """Get width, height, duration from Dropbox file metadata (no download)."""
+        from dropbox.files import VideoMetadata, PhotoMetadata
         metadata = dbx.files_get_metadata(file.path_lower, include_media_info=True)
         if hasattr(metadata, 'media_info') and metadata.media_info:
             info = metadata.media_info.get_metadata()
-            width = info.dimensions.width
-            height = info.dimensions.height
-            duration = info.duration / 1000.0  # ms to seconds
+            width = None
+            height = None
+            if getattr(info, 'dimensions', None) is not None:
+                width = info.dimensions.width
+                height = info.dimensions.height
+            if isinstance(info, VideoMetadata):
+                duration = info.duration / 1000.0  # ms to seconds
+            else:
+                duration = None
             return width, height, duration
         return None, None, None
 
