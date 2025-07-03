@@ -226,6 +226,7 @@ class DropboxToInstagramUploader:
 
     def build_caption_with_filename(self, file, original_caption):
         base_name = os.path.splitext(file.name)[0]
+        base_name = base_name.replace('_', ' ')
         first_line = base_name[:100]
         return f"{first_line}\n\n{original_caption}"
 
