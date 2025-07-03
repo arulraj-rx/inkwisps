@@ -43,7 +43,7 @@ class DropboxToInstagramUploader:
         self.dropbox_secret = os.getenv("DROPBOX_APP_SECRET")
         self.dropbox_refresh = os.getenv("DROPBOX_REFRESH_TOKEN")
 
-        self.dropbox_folder = "/eclipsed_by_you"
+        self.dropbox_folder = "/inkwisp"
         if self.telegram_token:
             self.telegram_bot = Bot(token=self.telegram_token)
         else:
