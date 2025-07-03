@@ -521,6 +521,16 @@ class DropboxToInstagramUploader:
                 self.log_console_only("🖼️ Detected image file. Uploading as Facebook photo.", level=logging.INFO)
                 self.send_message(f"\n📦 File: {file.name}\n🖼️ Will upload as: Facebook Photo", level=logging.INFO)
                 post_url = f"https://graph.facebook.com/{self.fb_page_id}/photos"
+                self.log_console_only(f"🌐 Dropbox image URL: {media_url}", level=logging.INFO)
+                # Check if Dropbox link is accessible
+                try:
+                    check_res = requests.get(media_url, timeout=10)
+                    if check_res.status_code == 200:
+                        self.log_console_only(f"✅ Dropbox link is accessible (status 200)", level=logging.INFO)
+                    else:
+                        self.log_console_only(f"❌ Dropbox link returned status {check_res.status_code}", level=logging.ERROR)
+                except Exception as e:
+                    self.log_console_only(f"❌ Exception checking Dropbox link: {e}", level=logging.ERROR)
                 data = {
                     "access_token": page_token,
                     "url": media_url,
