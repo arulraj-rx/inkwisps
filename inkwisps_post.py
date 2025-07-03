@@ -213,7 +213,7 @@ class DropboxToInstagramUploader:
             today = datetime.now(self.ist).strftime("%A")
             day_config = config.get(self.account_key, {}).get(today, {})
             
-            caption = day_config.get("caption", "✨ #inkwisps ✨")
+            caption = day_config.get("caption", "✨ #eclipsed_by_you ✨")
             description = day_config.get("description", caption)  # Fallback to caption if missing
             
             if not caption:
@@ -222,7 +222,7 @@ class DropboxToInstagramUploader:
             return caption, description
         except Exception as e:
             self.send_message(f"❌ Failed to read caption/description from config: {e}", level=logging.ERROR)
-            return "✨ #inkwisps ✨", "✨ #inkwisps ✨"
+            return "✨ #eclipsed_by_you ✨", "✨ #eclipsed_by_you ✨"
 
     def build_caption_with_filename(self, file, original_caption):
         base_name = os.path.splitext(file.name)[0]
