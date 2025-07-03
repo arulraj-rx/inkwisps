@@ -228,7 +228,7 @@ class DropboxToInstagramUploader:
         base_name = os.path.splitext(file.name)[0]
         base_name = base_name.replace('_', ' ')
         first_line = base_name[:100]
-        return f"{first_line}\n\n{original_caption}"
+        return f"{first_line}\n.\n.\n\n{original_caption}"
 
     def post_to_instagram(self, dbx, file, caption, description):
         name = file.name
