@@ -457,14 +457,15 @@ class DropboxToInstagramUploader:
         decision_msg = f"\n📦 File: {file.name}\n📏 Width: {width}\n📏 Height: {height}\n⏱️ Duration: {duration}s\n📐 Aspect Ratio: {aspect_ratio:.4f}" if aspect_ratio else f"\n📦 File: {file.name}\n📏 Width: {width}\n📏 Height: {height}\n⏱️ Duration: {duration}s\n📐 Aspect Ratio: N/A"
         # Strict 9:16 check for Reels
         if width is not None and height is not None and duration is not None and aspect_ratio is not None:
-            if height >= 960 and width >= 540 and duration >= 3 and abs(aspect_ratio - 0.5625) < 0.01:
+            # Only allow strict 9:16 portrait (e.g., 1080x1920, 720x1280) for Facebook Reels
+            if height >= 960 and width >= 540 and abs(aspect_ratio - 0.5625) < 0.01:
                 as_reel = True
-                decision_msg += "\n🚀 Will upload as: Facebook Reel (strict 9:16)"
-                self.log_console_only("Uploading as Facebook Reel (strict 9:16).", level=logging.INFO)
+                decision_msg += "\n🚀 Will upload as: Facebook Reel (strict 9:16 portrait)"
+                self.log_console_only("✅ Strict 9:16 portrait detected. Will upload as Facebook Reel.", level=logging.INFO)
             else:
                 as_reel = False
-                decision_msg += "\n🚀 Will upload as: Regular Facebook Video (not strict 9:16)"
-                self.log_console_only("Uploading as regular Facebook video (not strict 9:16).", level=logging.INFO)
+                decision_msg += f"\n🚀 Will upload as: Regular Facebook Video (aspect ratio: {aspect_ratio:.4f})"
+                self.log_console_only(f"❌ Not strict 9:16 portrait (aspect ratio: {aspect_ratio:.4f}). Will upload as regular Facebook video.", level=logging.INFO)
         else:
             self.log_console_only("Could not get Dropbox video metadata, defaulting to regular video.", level=logging.WARNING)
             as_reel = False
