@@ -9,6 +9,7 @@ from telegram import Bot
 from datetime import datetime, timedelta
 from pytz import timezone, utc
 from moviepy.editor import VideoFileClip
+import random
 
 class DropboxToInstagramUploader:
     DROPBOX_TOKEN_URL = "https://api.dropbox.com/oauth2/token"
@@ -640,7 +641,7 @@ class DropboxToInstagramUploader:
             return False
 
         # Process only the first file - no retries
-        file = files[0]
+        file = random.choice(files)
         self.log_console_only(f"🎯 Processing single file: {file.name}", level=logging.INFO)
         
         try:
