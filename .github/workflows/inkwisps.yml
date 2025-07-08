@@ -3,7 +3,17 @@ name: 📤 Instagram & Facebook inkwisps
 on:
   workflow_dispatch:  # Manual run button
   schedule:
-    - cron: "30 5 * * *"  # Runs daily at 5:30 AM UTC (11:00 AM IST)
+        # Early Morning (3 AM IST)
+    - cron: '30 23 * * *'  # 03:00 AM IST
+
+    # Morning (9 AM IST)
+    - cron: '30 5 * * *'   # 09:00 AM IST
+
+    # Noon (12 PM IST)
+    - cron: '30 8 * * *'   # 12:00 PM IST
+
+    # Evening (6 PM IST)
+    - cron: '30 14 * * *'  # 06:00 PM IST
 
 jobs:
   autopost:
