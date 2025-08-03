@@ -4,7 +4,7 @@ on:
   workflow_dispatch:  # Manual run button
   schedule:
     - cron: '45 4 * * *'   # 09:15 AM IST 
-    - cron: '45 20 * * *'  # 02:15 AM IST
+    
 
 jobs:
   autopost:
